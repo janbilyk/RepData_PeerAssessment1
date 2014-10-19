@@ -1,25 +1,108 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
 ---
 
 
-## Loading and preprocessing the data
-
-
+## Loading and preprocessing the data 
+```{r}
+unzip('activity.zip')
+activity <- read.csv('activity.csv', sep=",",quote="\"", dec=".", fill=TRUE)
+````
 
 ## What is mean total number of steps taken per day?
+- Remove incomplete observations
+```{r}
+activity_clear <- activity[complete.cases(activity),]
+activity_clear$date <- as.Date(activity_clear$date) 
+```
+- load *plyr* library
+```{r}
+library(plyr)
+```
+- create new data frame with sum of steps taken each day
+```{r}
+StepsDaily <- ddply(activity_clear,~date,summarise,sum=sum(steps))
+```
+- plot histogram
+```{r}
+library(ggplot2)
+print( qplot(StepsDaily$date,StepsDaily$sum, geom='bar', stat='identity') )
+summary(StepsDaily)
+```
 
-
-
+- calulate mean
+```{r}
+mean(StepsDaily$sum)
+```
+- calulate median
+```{r}
+median(StepsDaily$sum)
+```
 ## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
-
-
-
+- create necessary data frame
+```{r}
+StepsInterval <- ddply(activity_clear,~interval,summarize,mean=mean(steps))
+```
+- plot a line that show mean number of steps taken at given interval
+```{r}
+plot(StepsInterval$mean, type="l")
+```
+- identify interval with maximum average number of steps
+```{r}
+StepsInterval[max(StepsInterval$mean),]
+```
+## Inputing missing values
+- identify subset that has missing values
+```{r}
+activity_missing <- activity[is.na(activity),]
+```
+- assign zero to all missing values
+```{r}
+activity_missing$steps <- 0
+```
+- creates a new data frame that merges data from missing subset with average data
+```{r}
+activity_missing_completed <- merge(activity_missing,StepsInterval, by.x = "interval", by.y = "interval")
+```
+- assing a mean to all missing values and drop unnecessary column
+```{r}
+activity_missing_completed$steps <- activity_missing_completed$mean
+activity_missing_completed$mean <- NULL
+```
+- binds both complete.cases dataframes 
+```{r}
+activity_na_imput <- rbind(activity_clear,activity_missing_completed)
+```
+- creates sums over particular dates (with new data) and plots appropriate chart
+```{r}
+StepsDaily_na_imput <- ddply(activity_na_imput,~date,summarise,sum=sum(steps))
+print( qplot(StepsDaily_na_imput$date,StepsDaily_na_imput$sum, geom='bar', stat='identity') )
+```
+- new mean value
+```{r}
+mean(StepsDaily_na_imput$sum)
+```
+- new median value
+```{r}
+median(StepsDaily_na_imput$sum)
+```
 ## Are there differences in activity patterns between weekdays and weekends?
+- adds another column that changes the date into weekday name
+```{r}
+activity_na_imput$day <- weekdays(as.Date(activity_na_imput$date))
+```
+- creates a data frame that converts day name to weekeday or weekend, accordingly
+```{r}
+weekend_frame <- data.frame(day=c("Monday","Tuesday", "Wednesday", "Thursday","Friday","Saturday","Sunday"),weekend=c("weekday","weekday","weekday","weekday","weekday","weekend","weekend"))
+```
+- joins two above frames to distinct beetween "weekend" and "weekday" readings
+```{r}
+activity_na_imput <- merge(activity_na_imput,weekend_frame, by.x="day",by.y="day")
+```
+- creates summary dataframe and plots it in two panels to compare "weekend" and "weekday" readings
+```{r}
+StepsIntervalWeekend <- ddply(activity_na_imput,.(weekend,interval),summarise,mean=mean(steps))
+g <- qplot(interval, mean, data = StepsIntervalWeekend)
+g <- g + facet_grid(weekend ~.) + geom_line()
+g
+```
